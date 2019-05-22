@@ -2,7 +2,9 @@ package model
 
 import (
     "database/sql"
+    "fmt"
     "log"
+    "time"
 
     //"fmt"
     //"strconv"
@@ -41,7 +43,7 @@ func (m *VoteLogModel) Exec(query string, args ...interface{}) (sql.Result, erro
 }
 
 //获取该手机号都投过谁
-func (m *VoteLogModel) GetVoteLog(telPhone string) ([]VoteLogRow,error) {
+func (m *VoteLogModel) GetVoteLog(telPhone string) ([]VoteLogRow, error) {
     m.constructVoteLogModel()
 
     queryString := "SELECT id,tel_phone,sid,time FROM " + vote_log_table + " WHERE tel_phone = ?"
@@ -61,6 +63,42 @@ func (m *VoteLogModel) GetVoteLog(telPhone string) ([]VoteLogRow,error) {
     }
     return data, err
 
+}
+
+func (m *VoteLogModel) VoteMySchool(sidArr []int, telPhone string) (int) {
+    //获取用户所有的点赞记录
+    userVoteLog, _ := m.GetVoteLog(telPhone)
+    fmt.Println("已经投票过：",len(userVoteLog))
+    if len(userVoteLog) >= 3 {
+        return -1
+    }
+    for _, value := range userVoteLog {
+        for _, sid := range sidArr {
+            if value.Sid == sid {
+                return value.Sid; //已经投过票了,并且把投过票的sid返回
+            }
+        }
+    }
+    var insertString,updateString string
+    insertString += "Insert into " + vote_log_table + "(tel_phone, sid, time) values (?,?,?)"
+    updateString += "UPDATE " + school_table_name + " SET `ticket` = ticket + 1 where id = ?"
+    stmt, err := m.Db.Prepare(insertString)
+    dateTime := time.Now().Format("2006-01-02 15:04:05")
+    if err != nil {
+        fmt.Println(err)
+    }
+    fmt.Println(sidArr)
+    for _, sid := range sidArr {
+        _, err := stmt.Exec(telPhone, sid, dateTime) //逐条插入点赞记录
+        if err != nil {
+            fmt.Println(err)
+        }
+        m.Db.Exec(updateString,sid) //修改点赞数量
+
+    }
+
+    //修改点赞数量
+    return 0
 }
 
 //func (m *CprOrdersModel) SaveOrderResult(renderTime float64, resultVideoUrl string, notifyResult int) {
